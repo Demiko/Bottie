@@ -52,4 +52,4 @@ class Bottie(discord.Client):
 
     async def logout(self, channel):
         await self.send_message(channel, content="Bye-bye.")
-        super().logout()
+        await super().logout()
