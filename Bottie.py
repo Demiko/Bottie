@@ -7,38 +7,44 @@ class Bottie(discord.Client):
     def __init__(self, **options):
         super().__init__(**options)
 
-    async def on_message(self, message:discord.Message):
-        if not self.user.mentioned_in(message):
+    async def on_ready(self):
+        self.appInfo = await self.application_info()
+
+    async def on_message(self, message):
+        if message.author.id == self.user.id or not message.server.me.mentioned_in(message):
             return
-        text:str = message.content.replace(self.user.mention, '').strip()
-        print(text)
-        if text == "halt":
-            info = await self.application_info()
-            if message.author.id == info.owner.id:
-                await self.send_message(message.channel, content='Bye-bye.')
-                await self.logout()
+        print(message.content)
+        text = message.content.replace(message.server.me.mention, '').strip()
+        response = "I can't recognize the command. Sorry."
+        if text=="":
+            response = "How can i help you?"
+        elif re.match("introduce", text):
+            response = "Hi, my name is %s." % (self.appInfo.name)
+        elif re.match("roll", text):
+            roll = re.match(r"roll (?P<rolls>\d+)?d(?P<sides>\d+)(?P<modifier>[\+-]\d+)?", text)
+            rolls = int(roll.group('rolls')) if roll.group('rolls') else 1
+            sides = int(roll.group('sides'))
+            modifier = int(roll.group('modifier')) if roll.group('modifier') else 0
+            if rolls == 0 or sides == 0:
+                response = "It's %s, and you know this!" % modifier
+            elif rolls > 100:
+                response = "Chill! I have only 100 dice."
+            elif sides > 100:
+                response = "Chill! I have only d100 max."
+            elif sides == 1:
+                response = "Obviously, it's %s!" % (rolls + modifier)
             else:
-                await self.send_message(message.channel, content="Only my master can do that!")
-            return
-        if text.startswith("roll"):
-            params = re.fullmatch(r'([0-9]*)d([0-9]+)()', text[5:])
-            if params:
-                rolls = int(params[1]) if params[1] else 1
-                sides = int(params[2])
-                if rolls == 0 or sides == 0:
-                    response = "It's zero, and you know it! :angry:"
-                elif rolls > 100:
-                    response = "Chill! I have only 100 dice."
-                elif sides > 100:
-                    response = "Chill! I have only d100 max."
-                elif sides == 1:
-                    response = "Obviously, it's %s!" % (rolls)
-                else:
-                    roll = random.choices(range(1, sides+1), k=rolls)
-                    response = "I've rolled %s. Result is %s %s." % (params[0], sum(roll), roll)
-                response = "%s, %s" % (message.author.mention, response)
-                await self.send_message(message.channel, content=response)
+                result = random.choices(range(1, sides+1), k=rolls)
+                response = "I've rolled %s. Result is %s %s." % (roll[0][5:], sum(result) + modifier, result)
+        elif re.match("halt", text):
+            if message.author.id == self.appInfo.owner.id:
+                await self.logout(message.channel)
+                return
             else:
-                await self.send_message(message.channel, content="Sorry. I can't roll that.")
-            return
-        await self.send_message(message.channel, content='Command not recognized. Sorry.')
+                response = "Only my master can do that!"
+        response = "%s\n%s" % (message.author.mention, response)
+        await self.send_message(message.channel, content=response)
+
+    async def logout(self, channel):
+        await self.send_message(channel, content="Bye-bye.")
+        super().logout()
