@@ -1,11 +1,15 @@
 import discord
 import random
 import re
-
+import logging
 
 class Bottie(discord.Client):
     def __init__(self, **options):
         super().__init__(**options)
+        self.logger = options.get('logger')
+        if not self.logger:
+            self.logger = logging.basicConfig(level=logging.INFO)
+        self.appInfo = None
 
     async def on_ready(self):
         self.appInfo = await self.application_info()
@@ -13,7 +17,7 @@ class Bottie(discord.Client):
     async def on_message(self, message):
         if message.author.id == self.user.id or not message.server.me.mentioned_in(message):
             return
-        print(message.content)
+        self.logger.info("Got message: '%s'", message.content)
         text = message.content.replace(message.server.me.mention, '').strip()
         response = "I can't recognize the command. Sorry."
         if text=="":
@@ -43,13 +47,14 @@ class Bottie(discord.Client):
                     response = "I've rolled %s. Result is %s %s." % (roll[0][5:], sum(result) + modifier, result)
         elif re.match("halt", text):
             if message.author.id == self.appInfo.owner.id:
-                await self.logout(message.channel)
+                await self.send_message(message.channel, content="Bye-bye.")
+                await self.logout()
                 return
             else:
                 response = "Only my master can do that!"
         response = "%s\n%s" % (message.author.mention, response)
         await self.send_message(message.channel, content=response)
 
-    async def logout(self, channel):
-        await self.send_message(channel, content="Bye-bye.")
-        await super().logout()
+    def roll_dice(self, rolls: int, sides: int, modifier: int) -> (list, int):
+        result = random.choices(range(1,sides+1), k=rolls)
+        return (result, sum(result)+modifier)
